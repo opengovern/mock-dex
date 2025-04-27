@@ -1,0 +1,83 @@
+version: "3.8" # Using version 3.8, syntax largely compatible with V2+
+
+services:
+  # --- PostgreSQL Database ---
+  postgres:
+    image: postgres:10.15 # Using specific version for stability
+    container_name: postgres_dex
+    environment:
+      POSTGRES_DB: dex # Primary DB, created automatically
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password # Use a strong secret in production!
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Persistent data
+      - ./postgres-init:/docker-entrypoint-initdb.d # Mount init scripts directory
+    networks:
+      - dexnet
+    healthcheck: # Checks if Postgres is ready to accept connections
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dex"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # --- Dex OIDC Provider ---
+  dex:
+    image: ghcr.io/dexidp/dex:v2.38.0
+    container_name: dex
+    volumes:
+      - ./config.yaml:/etc/dex/config.yaml:ro # Mount Dex config read-only
+    # No direct HTTP port exposure - access via Nginx proxy recommended
+    ports:
+      - "5557:5557" # Expose gRPC port if needed for direct host access/debugging
+    command: dex serve /etc/dex/config.yaml
+    networks:
+      - dexnet
+    depends_on:
+      postgres: # Wait for Postgres to be healthy
+        condition: service_healthy
+    restart: unless-stopped
+
+
+  # --- Node.js App Service (Backend for /app/) ---
+  app:
+    container_name: clearcompass_app
+    build:
+      context: ./app # Directory containing the Node.js app's Dockerfile and code
+      dockerfile: Dockerfile
+    env_file:
+      - ./app/.env.compose # Load env vars specific to the Node.js app
+    restart: unless-stopped
+    networks:
+      - dexnet
+    depends_on:
+      dex: # Depends on Dex being available (basic check)
+        condition: service_started
+
+  # --- Nginx Reverse Proxy (Entrypoint) ---
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: nginx_proxy
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro # Mount Nginx config read-only
+    ports:
+      - "80:80" # Expose Nginx on host port 80
+    networks:
+      - dexnet
+    depends_on:
+      # Wait for backend services containers to start before Nginx starts proxying
+      dex:
+        condition: service_started
+      app:
+        condition: service_started
+
+    restart: unless-stopped
+
+# --- Shared Network ---
+networks:
+  dexnet:
+    driver: bridge
+
+# --- Persistent Volume for PostgreSQL Data ---
+volumes:
+  postgres_data:

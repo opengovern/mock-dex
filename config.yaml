@@ -1,0 +1,83 @@
+# config.yaml (Final Version)
+# Configuration for Dex, using PostgreSQL for storage,
+# enabling the built-in password database, setting the issuer URL for the proxy,
+# defining the necessary client app, and enabling the gRPC endpoint.
+
+# Issuer URL identifies the Dex instance through the Nginx proxy.
+# This MUST match the URL your client applications use.
+issuer: http://localhost/dex
+
+# Storage configuration: PostgreSQL
+storage:
+  type: postgres
+  config:
+    host: postgres        # Docker service name for PostgreSQL container
+    port: 5432
+    database: dex
+    user: postgres
+    # IMPORTANT: Use secrets management (like Docker secrets or env vars) for production!
+    password: password
+    ssl:
+      mode: disable       # Adjust if you set up SSL for Postgres
+
+# Web server configuration (internal listening address):
+# Dex listens internally on this port. Nginx proxies requests to this address.
+# Assumes Dex internally serves its endpoints under the root '/' relative to this port,
+# as Nginx is handling the /dex path rewrite. If Dex has its own base path config, adjust accordingly.
+web:
+  http: 0.0.0.0:5556
+
+# gRPC API configuration: Optional, for management via dexctl.
+grpc:
+  addr: 0.0.0.0:5557
+  # tlsCert: path/to/server.crt
+  # tlsKey: path/to/server.key
+  # tlsClientCA: path/to/ca.crt
+
+# Enable the built-in password database connector.
+enablePasswordDB: true
+
+# Define static clients that can connect to Dex.
+staticClients:
+  # --- Client Definition for your Node.js Application ---
+  - id: clearcompass-app
+    # REPLACE 'your-strong-client-secret' with a unique, strong secret.
+    # Your Node.js application MUST be configured with this exact same secret.
+    secret: "clearcompass-secret"
+    name: 'ClearCompass Sample App'
+    redirectURIs:
+      # The callback URL required by your Node.js application
+      - 'http://127.0.0.1:3000/auth/callback'
+      - 'http://localhost/app/auth/callback'
+    
+      # Add any other valid callback URIs for this client if necessary
+
+
+# Define static users within the built-in password database.
+staticPasswords:
+  - email: "admin@opensecurity.sh"
+    # This hash corresponds to the password "password". Replace for production.
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: "admin"
+    userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+  # Add more static users here if needed
+
+# Configure OAuth2 behavior.
+oauth2:
+  # Use the built-in password database ('local' is the default connector ID)
+  passwordConnector: local
+  # Set response types Dex will allow. Default usually includes 'code', 'token', 'id_token'.
+  # responseTypes: ["code", "token", "id_token"]
+  # Uncomment to allow clients to skip the user consent screen (useful for trusted first-party apps)
+  # skipApprovalScreen: true
+  # Set default lifetime for ID tokens. Default is 24h.
+  # idTokenValidity: 24h
+
+# Optional: Configure telemetry endpoint (e.g., for Prometheus metrics)
+# telemetry:
+#   http: 0.0.0.0:5558 # Internal port for metrics
+
+# Optional: Logging configuration
+# logger:
+#   level: debug # Options: debug, info, warn, error
+#   format: json # Options: text, json
