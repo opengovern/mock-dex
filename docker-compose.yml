@@ -12,6 +12,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data # Persistent data
       - ./postgres-init:/docker-entrypoint-initdb.d # Mount init scripts directory
+    ports: # <<< ADD THIS SECTION
+      - "5433:5432" # Map host port 5433 to container port 5432
     networks:
       - dexnet
     healthcheck: # Checks if Postgres is ready to accept connections

@@ -19,6 +19,8 @@ import { fileURLToPath, URL } from 'url'; // Needed for __dirname in ESM and URL
 // Helper for __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const DEX_PUBLIC_ISSUER = process.env.DEX_PUBLIC_ISSUER || DEX_ISSUER; // Fallback just in case
+
 
 // --- Docker Compose Adaptation: Load .env.compose ---
 const envPath = path.resolve(__dirname, '.env.compose');
@@ -127,7 +129,9 @@ app.use(session({
     secure: 'auto', // Use secure cookies if connection is HTTPS (requires 'trust proxy')
     httpOnly: true, // Helps mitigate XSS
     maxAge: SESSION_MAX_AGE,
-    path: HOME_ROUTE || '/', // Cookie path should match the app's base path
+    //path: HOME_ROUTE || '/', // Cookie path should match the app's base path
+    path: '/', // Set cookie path to root
+
     sameSite: 'lax', // Recommended for security against CSRF
   },
 }));
@@ -141,10 +145,14 @@ app.use(passport.session()); // Depends on express-session
 
 passport.use('oidc', new OpenIDConnectStrategy({
     // --- Provider Details ---
-    issuer:           DEX_ISSUER,
-    authorizationURL: `${DEX_ISSUER}/auth`,
-    tokenURL:         `${DEX_ISSUER}/token`,
-    userInfoURL:      `${DEX_ISSUER}/userinfo`,
+    issuer:           DEX_PUBLIC_ISSUER,
+    // Explicitly set URLs:
+    // Front-channel endpoint for browser redirects (needs public URL)
+    authorizationURL: `${DEX_PUBLIC_ISSUER}/auth`,
+    // Back-channel endpoint for server-to-server token exchange (needs internal URL)
+    // --- MODIFY THESE TWO LINES ---
+    tokenURL:         `${DEX_ISSUER}/dex/token`,    // Add /dex prefix
+    userInfoURL:      `${DEX_ISSUER}/dex/userinfo`, // Add /dex prefix
     // --- Client Details ---
     clientID:         CLIENT_ID,
     clientSecret:     CLIENT_SECRET,
